@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Turtle Maze - Playable Ad</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a472a 0%, #0e2a1a 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', 'Poppins', system-ui, -apple-system, sans-serif;
+            touch-action: none;
+        }
+
+        .game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #2d5a3b 0%, #1a3a25 100%);
+        }
+
+        canvas {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(95vw, 95vh);
+            height: min(95vw, 95vh);
+            background: #d4a574;
+            border-radius: 50%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4), inset 0 2px 5px rgba(255,255,255,0.3);
+            cursor: pointer;
+            touch-action: none;
+        }
+
+        /* Панель управления (для десктопа/отладки) */
+        .debug-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-family: monospace;
+            display: none;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+            pointer-events: none;
+        }
+
+        /* Стартовый экран */
+        .start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            color: white;
+            text-align: center;
+            gap: 20px;
+        }
+
+        .start-screen h1 {
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .start-screen p {
+            font-size: 1.1rem;
+            max-width: 80%;
+            margin: 10px 0;
+        }
+
+        .start-btn {
+            background: linear-gradient(135deg, #ff9800, #f57c00);
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+
+        .start-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Экран победы */
+        .win-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            backdrop-filter: blur(8px);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            color: gold;
+            text-align: center;
+            gap: 20px;
+        }
+
+        .win-screen h1 {
+            font-size: 3rem;
+            animation: bounce 0.5s ease;
+        }
+
+        .win-screen .store-btn {
+            background: linear-gradient(135deg, #4caf50, #2e7d32);
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: white;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        /* Индикатор наклона */
+        .tilt-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.6);
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #0f0;
+            font-family: monospace;
+            display: none;
+            z-index: 100;
+        }
+
+        @media (max-width: 768px) {
+            .start-screen h1 { font-size: 1.8rem; }
+            .start-screen p { font-size: 0.9rem; }
+            .start-btn { padding: 12px 30px; font-size: 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="game-container">
+    <canvas id="gameCanvas" width="600" height="600"></canvas>
+
+    <div class="start-screen" id="startScreen">
+        <h1>🐢 ЧЕРЕПАШИЙ ЛАБИРИНТ 🎯</h1>
+        <p>Наклоняй телефон, чтобы провести шарик к цели!</p>
+        <p style="font-size:0.9rem; opacity:0.8;">⚠️ Панцирь скруглён — шарик будет скатываться к краям</p>
+        <button class="start-btn" id="startBtn">▶ НАЧАТЬ ИГРУ</button>
+    </div>
+
+    <div class="win-screen" id="winScreen">
+        <h1>🎉 ПОБЕДА! 🎉</h1>
+        <p>Ты провёл шарик через лабиринт!</p>
+        <button class="store-btn" id="storeBtn">📱 СКАЧАТЬ ИГРУ</button>
+        <button class="start-btn" id="playAgainBtn" style="background:#666; margin-top:10px;">🔄 ИГРАТЬ СНОВА</button>
+    </div>
+
+    <div class="debug-panel" id="debugPanel">Наклон: X:0° Y:0°</div>
+    <div class="tilt-indicator" id="tiltIndicator">📳 ГИРОСКОП: АКТИВЕН</div>
+</div>
+
+<script>
+    (function(){
+        // ==================== НАСТРОЙКИ ====================
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Размеры
+        let width = 600, height = 600;
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Центр панциря (круглая область)
+        const centerX = width/2;
+        const centerY = height/2;
+        const shellRadius = width/2 - 10;  // радиус панциря
+        
+        // Параметры скругления панциря (именно они создают эффект "скатывания")
+        const curveRadius = shellRadius;     // полный радиус скругления
+        const flatCenterRadius = 35;         // плоская зона в центре (чем меньше, тем сложнее)
+        const shellGravity = 0.12;           // сила скатывания к краям
+        
+        // Физика шарика
+        let ball = {
+            x: centerX,
+            y: centerY,
+            vx: 0,
+            vy: 0,
+            radius: 12
+        };
+        
+        // Данные с гироскопа (сглаженные)
+        let currentTiltX = 0;    // gamma: влево-вправо
+        let currentTiltY = 0;     // beta: вперёд-назад
+        let filteredTiltX = 0;
+        let filteredTiltY = 0;
+        const SMOOTHING = 0.25;    // сглаживание
+        
+        // Чувствительность к наклону
+        const tiltSensitivity = 0.065;
+        
+        // Трение
+        const friction = 0.985;
+        
+        // Флаги
+        let gameRunning = false;
+        let gameWin = false;
+        
+        // ==================== ЛАБИРИНТ ====================
+        // Карта лабиринта: 0 - путь, 1 - стена
+        // 15x15 сетка (чуть мельче, чтобы влезло в круг)
+        const mazeGrid = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,1,0,0,0,0,0,1,0,0,1],
+            [1,0,1,1,0,1,0,1,0,1,0,1,0,1,1],
+            [1,0,1,0,0,0,0,1,0,1,0,0,0,0,1],
+            [1,0,1,0,1,1,0,1,0,1,1,1,0,1,1],
+            [1,0,0,0,1,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,0,1,0,1,1,0,1,1,0,1,0,1],
+            [1,0,0,0,0,0,0,1,0,0,0,0,1,0,1],
+            [1,0,1,1,1,1,0,1,1,1,0,1,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,0,1,1,0,1,0,1,0,1,1,0,1],
+            [1,0,0,0,1,0,0,1,0,1,0,0,0,0,1],
+            [1,0,1,1,1,0,1,1,0,1,1,0,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,2,0,1],  // 2 - цель (золото)
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+        
+        const cellSize = width / mazeGrid.length;
+        let goalPos = { x: 0, y: 0 };
+        
+        // Находим позицию цели (2)
+        for(let row=0; row<mazeGrid.length; row++){
+            for(let col=0; col<mazeGrid[0].length; col++){
+                if(mazeGrid[row][col] === 2){
+                    goalPos = { x: col * cellSize + cellSize/2, y: row * cellSize + cellSize/2 };
+                    mazeGrid[row][col] = 0; // превращаем в проход
+                }
+            }
+        }
+        
+        // Проверка коллизии со стенами
+        function checkWallCollision(x, y, radius){
+            // Определяем клетки, которые затрагивает шарик
+            let leftCell = Math.floor((x - radius) / cellSize);
+            let rightCell = Math.floor((x + radius) / cellSize);
+            let topCell = Math.floor((y - radius) / cellSize);
+            let bottomCell = Math.floor((y + radius) / cellSize);
+            
+            leftCell = Math.max(0, leftCell);
+            rightCell = Math.min(mazeGrid[0].length-1, rightCell);
+            topCell = Math.max(0, topCell);
+            bottomCell = Math.min(mazeGrid.length-1, bottomCell);
+            
+            for(let row=topCell; row<=bottomCell; row++){
+                for(let col=leftCell; col<=rightCell; col++){
+                    if(mazeGrid[row][col] === 1){
+                        // Стена - проверяем коллизию с прямоугольником клетки
+                        let wallLeft = col * cellSize;
+                        let wallRight = wallLeft + cellSize;
+                        let wallTop = row * cellSize;
+                        let wallBottom = wallTop + cellSize;
+                        
+                        // Находим ближайшую точку на стене к центру шарика
+                        let closestX = Math.max(wallLeft, Math.min(x, wallRight));
+                        let closestY = Math.max(wallTop, Math.min(y, wallBottom));
+                        let dx = x - closestX;
+                        let dy = y - closestY;
+                        let dist = Math.sqrt(dx*dx + dy*dy);
+                        
+                        if(dist < radius){
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+        
+        // Функция разрешения коллизии (отталкивание)
+        function resolveWallCollision(x, y, radius){
+            let leftCell = Math.floor((x - radius) / cellSize);
+            let rightCell = Math.floor((x + radius) / cellSize);
+            let topCell = Math.floor((y - radius) / cellSize);
+            let bottomCell = Math.floor((y + radius) / cellSize);
+            
+            leftCell = Math.max(0, leftCell);
+            rightCell = Math.min(mazeGrid[0].length-1, rightCell);
+            topCell = Math.max(0, topCell);
+            bottomCell = Math.min(mazeGrid.length-1, bottomCell);
+            
+            for(let row=topCell; row<=bottomCell; row++){
+                for(let col=leftCell; col<=rightCell; col++){
+                    if(mazeGrid[row][col] === 1){
+                        let wallLeft = col * cellSize;
+                        let wallRight = wallLeft + cellSize;
+                        let wallTop = row * cellSize;
+                        let wallBottom = wallTop + cellSize;
+                        
+                        let closestX = Math.max(wallLeft, Math.min(x, wallRight));
+                        let closestY = Math.max(wallTop, Math.min(y, wallBottom));
+                        let dx = x - closestX;
+                        let dy = y - closestY;
+                        let dist = Math.sqrt(dx*dx + dy*dy);
+                        
+                        if(dist < radius){
+                            let angle = Math.atan2(dy, dx);
+                            let overlap = radius - dist;
+                            return {
+                                newX: x + Math.cos(angle) * overlap,
+                                newY: y + Math.sin(angle) * overlap,
+                                collision: true
+                            };
+                        }
+                    }
+                }
+            }
+            return { newX: x, newY: y, collision: false };
+        }
+        
+        // ==================== СИЛА СКРУГЛЕНИЯ ПАНЦИРЯ ====================
+        function getShellRollForce(ballX, ballY){
+            let dx = ballX - centerX;
+            let dy = ballY - centerY;
+            let distance = Math.sqrt(dx*dx + dy*dy);
+            
+            // Если в центральной плоской зоне — скатывания нет
+            if(distance < flatCenterRadius){
+                return { fx: 0, fy: 0 };
+            }
+            
+            // Интенсивность скатывания (0 у края плоской зоны, 1 на краю панциря)
+            let intensity = Math.min(1, (distance - flatCenterRadius) / (curveRadius - flatCenterRadius));
+            
+            // Направление от центра к шарику (скатывается наружу)
+            let angle = Math.atan2(dy, dx);
+            let forceMagnitude = intensity * shellGravity;
+            
+            return {
+                fx: Math.cos(angle) * forceMagnitude,
+                fy: Math.sin(angle) * forceMagnitude
+            };
+        }
+        
+        // Ограничение движения границами панциря
+        function clampToShell(x, y, radius){
+            let dx = x - centerX;
+            let dy = y - centerY;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            let maxDist = shellRadius - radius;
+            
+            if(dist > maxDist){
+                let angle = Math.atan2(dy, dx);
+                return {
+                    x: centerX + Math.cos(angle) * maxDist,
+                    y: centerY + Math.sin(angle) * maxDist
+                };
+            }
+            return { x, y };
+        }
+        
+        // ==================== ФИЗИКА ШАРИКА ====================
+        function updatePhysics(){
+            if(!gameRunning || gameWin) return;
+            
+            // 1. Сила от наклона телефона
+            let tiltForceX = filteredTiltX * tiltSensitivity;
+            let tiltForceY = filteredTiltY * tiltSensitivity;
+            
+            // 2. Сила от скругления панциря
+            let shellForce = getShellRollForce(ball.x, ball.y);
+            
+            // 3. Суммарное ускорение
+            let accX = tiltForceX + shellForce.fx;
+            let accY = tiltForceY + shellForce.fy;
+            
+            // 4. Обновляем скорость и позицию
+            ball.vx += accX;
+            ball.vy += accY;
+            ball.vx *= friction;
+            ball.vy *= friction;
+            
+            let newX = ball.x + ball.vx;
+            let newY = ball.y + ball.vy;
+            
+            // 5. Коллизия со стенами лабиринта
+            let collisionResult = resolveWallCollision(newX, newY, ball.radius);
+            if(collisionResult.collision){
+                newX = collisionResult.newX;
+                newY = collisionResult.newY;
+                // При столкновении со стеной теряем скорость
+                ball.vx *= -0.4;
+                ball.vy *= -0.4;
+            }
+            
+            // 6. Проверка границ панциря
+            let clamped = clampToShell(newX, newY, ball.radius);
+            ball.x = clamped.x;
+            ball.y = clamped.y;
+            
+            // 7. Проверка достижения цели
+            let dxToGoal = ball.x - goalPos.x;
+            let dyToGoal = ball.y - goalPos.y;
+            let distToGoal = Math.sqrt(dxToGoal*dxToGoal + dyToGoal*dyToGoal);
+            if(distToGoal < ball.radius + 10 && !gameWin){
+                gameWin = true;
+                gameRunning = false;
+                document.getElementById('winScreen').style.display = 'flex';
+            }
+        }
+        
+        // ==================== ОБРАБОТКА ГИРОСКОПА ====================
+        function handleOrientation(event){
+            if(!gameRunning) return;
+            
+            // gamma: наклон влево/вправо (-90..90), beta: наклон вперёд/назад (-180..180)
+            let rawX = event.gamma || 0;
+            let rawY = event.beta || 0;
+            
+            // Ограничиваем и нормализуем
+            let tiltX = Math.max(-45, Math.min(45, rawX)) / 45;
+            let tiltY = Math.max(-45, Math.min(45, rawY)) / 45;
+            
+            // Экспоненциальное сглаживание
+            filteredTiltX = filteredTiltX * (1 - SMOOTHING) + tiltX * SMOOTHING;
+            filteredTiltY = filteredTiltY * (1 - SMOOTHING) + tiltY * SMOOTHING;
+            
+            // Отображение в отладке
+            let debugPanel = document.getElementById('debugPanel');
+            if(debugPanel.style.display === 'block'){
+                debugPanel.innerHTML = `Наклон: X:${Math.round(rawX)}° Y:${Math.round(rawY)}°`;
+            }
+        }
+        
+        // Запрос разрешения для iOS
+        function requestOrientationPermission(){
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation);
+                            document.getElementById('tiltIndicator').style.display = 'block';
+                        }
+                    })
+                    .catch(err => console.log('Permission error:', err));
+            } else {
+                // Android и другие
+                window.addEventListener('deviceorientation', handleOrientation);
+                document.getElementById('tiltIndicator').style.display = 'block';
+            }
+        }
+        
+        // ==================== ОТРИСОВКА ====================
+        function draw(){
+            if(!ctx) return;
+            
+            // 1. Заливка фона (земля)
+            ctx.clearRect(0, 0, width, height);
+            
+            // 2. Рисуем панцирь черепахи (круг с текстурой)
+            ctx.save();
+            ctx.shadowBlur = 0;
+            
+            // Градиент для объёма
+            let grad = ctx.createRadialGradient(centerX-30, centerY-30, 20, centerX, centerY, shellRadius);
+            grad.addColorStop(0, '#c9945e');
+            grad.addColorStop(0.5, '#a86f3c');
+            grad.addColorStop(1, '#6b3e1a');
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, shellRadius, 0, Math.PI*2);
+            ctx.fillStyle = grad;
+            ctx.fill();
+            
+            // Рисуем узор панциря (шестиугольники)
+            ctx.strokeStyle = '#5a2e0e';
+            ctx.lineWidth = 2;
+            for(let i=0; i<12; i++){
+                let angle = (i / 12) * Math.PI * 2;
+                let x1 = centerX + Math.cos(angle) * (shellRadius * 0.7);
+                let y1 = centerY + Math.sin(angle) * (shellRadius * 0.7);
+                let x2 = centerX + Math.cos(angle + 0.3) * (shellRadius * 0.9);
+                let y2 = centerY + Math.sin(angle + 0.3) * (shellRadius * 0.9);
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+            
+            // 3. Рисуем лабиринт (стены)
+            for(let row=0; row<mazeGrid.length; row++){
+                for(let col=0; col<mazeGrid[0].length; col++){
+                    if(mazeGrid[row][col] === 1){
+                        let x = col * cellSize;
+                        let y = row * cellSize;
+                        ctx.fillStyle = '#3d2a1a';
+                        ctx.fillRect(x, y, cellSize-1, cellSize-1);
+                        ctx.fillStyle = '#5a3a22';
+                        ctx.fillRect(x+2, y+2, cellSize-5, cellSize-5);
+                    }
+                }
+            }
+            
+            // 4. Рисуем цель (золотая монетка)
+            ctx.beginPath();
+            ctx.arc(goalPos.x, goalPos.y, 12, 0, Math.PI*2);
+            ctx.fillStyle = '#ffd700';
+            ctx.fill();
+            ctx.fillStyle = '#ffaa00';
+            ctx.beginPath();
+            ctx.arc(goalPos.x, goalPos.y, 8, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = '#ff8800';
+            ctx.font = "bold 16px Arial";
+            ctx.fillText("⭐", goalPos.x-8, goalPos.y+6);
+            
+            // 5. Рисуем шарик
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = "rgba(0,0,0,0.5)";
+            let ballGrad = ctx.createRadialGradient(ball.x-4, ball.y-4, 3, ball.x, ball.y, ball.radius);
+            ballGrad.addColorStop(0, '#ffffff');
+            ballGrad.addColorStop(0.7, '#aa5555');
+            ballGrad.addColorStop(1, '#772222');
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI*2);
+            ctx.fillStyle = ballGrad;
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(ball.x-3, ball.y-3, 3, 0, Math.PI*2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            ctx.restore();
+        }
+        
+        // ==================== СБРОС ИГРЫ ====================
+        function resetGame(){
+            ball = {
+                x: centerX,
+                y: centerY,
+                vx: 0,
+                vy: 0,
+                radius: 12
+            };
+            filteredTiltX = 0;
+            filteredTiltY = 0;
+            gameWin = false;
+            gameRunning = true;
+            document.getElementById('winScreen').style.display = 'none';
+        }
+        
+        // ==================== ИНИЦИАЛИЗАЦИЯ ====================
+        function init(){
+            // Скрываем экран старта
+            document.getElementById('startScreen').style.display = 'flex';
+            document.getElementById('winScreen').style.display = 'none';
+            gameRunning = false;
+            
+            // Кнопка старта
+            document.getElementById('startBtn').onclick = () => {
+                document.getElementById('startScreen').style.display = 'none';
+                resetGame();
+                requestOrientationPermission();
+                
+                // Показываем отладку на десктопе
+                if(!window.DeviceOrientationEvent || typeof DeviceOrientationEvent.requestPermission !== 'function'){
+                    document.getElementById('debugPanel').style.display = 'block';
+                }
+                
+                // Эмуляция мыши для десктопа/отладки
+                if(window.innerWidth > 800){
+                    document.getElementById('debugPanel').style.display = 'block';
+                    let mouseX = 0, mouseY = 0;
+                    window.addEventListener('mousemove', (e) => {
+                        if(!gameRunning || gameWin) return;
+                        mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
+                        mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
+                        filteredTiltX = mouseX * 0.8;
+                        filteredTiltY = mouseY * 0.8;
+                    });
+                }
+            };
+            
+            // Кнопка "Скачать игру" (имитация перехода в магазин)
+            document.getElementById('storeBtn').onclick = () => {
+                window.location.href = 'https://apps.apple.com/app/id123456789'; // Замените на реальную ссылку
+            };
+            
+            document.getElementById('playAgainBtn').onclick = () => {
+                resetGame();
+            };
+            
+            // Анимационный цикл
+            function gameLoop(){
+                updatePhysics();
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
+            gameLoop();
+        }
+        
+        init();
+    })();
+</script>
+</body>
+</html>
